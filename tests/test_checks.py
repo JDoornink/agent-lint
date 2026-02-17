@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import pytest
 
-from agent_lint.core.checks import Severity, ValidationReport
+from agent_lint.core.checks import CheckResult, Severity, ValidationReport
 from agent_lint.protocols.mcp.checks.performance import check_payload_size, check_response_time
 from agent_lint.protocols.mcp.checks.quality import check_quality
 from agent_lint.protocols.mcp.checks.security.patterns import check_dangerous_patterns
 from agent_lint.protocols.mcp.checks.security.permissions import check_permissions
 from agent_lint.protocols.mcp.checks.security.secrets import check_secrets
+from agent_lint.protocols.mcp.checks.security.ratelimit import check_rate_limiting
 from agent_lint.protocols.mcp.checks.security.validation import check_input_validation
 
 
@@ -172,6 +173,26 @@ class TestSecrets:
         assert all(r.passed for r in results)
 
 
+# --- Security: Rate limiting ---
+
+class TestRateLimiting:
+    def test_detects_rate_limit_headers(self):
+        headers = {"X-RateLimit-Limit": "100", "X-RateLimit-Remaining": "99"}
+        result = check_rate_limiting(headers)
+        assert result.passed
+
+    def test_missing_rate_limit_headers(self):
+        headers = {"Content-Type": "application/json"}
+        result = check_rate_limiting(headers)
+        assert not result.passed
+        assert result.severity == Severity.LOW
+
+    def test_retry_after_counts(self):
+        headers = {"Retry-After": "60"}
+        result = check_rate_limiting(headers)
+        assert result.passed
+
+
 # --- Performance ---
 
 class TestPerformance:
@@ -209,3 +230,59 @@ class TestValidationReport:
         report = ValidationReport(server_url="http://test")
         assert report.score == 100
         assert not report.has_security_issues
+
+
+# --- Security level filtering ---
+
+class TestSecurityLevel:
+    def test_standard_downgrades_low_severity(self):
+        from agent_lint.protocols.mcp.validator import MCPValidator
+        validator = MCPValidator(security_level="standard")
+        report = ValidationReport(server_url="http://test")
+        report.add(CheckResult("low_issue", False, "low", Severity.LOW, "security"))
+        report.add(CheckResult("med_issue", False, "med", Severity.MEDIUM, "security"))
+        validator._apply_security_level(report)
+        # LOW should be downgraded to pass, MEDIUM stays failed
+        assert report.results[0].passed is True
+        assert report.results[1].passed is False
+
+    def test_strict_keeps_low_severity(self):
+        from agent_lint.protocols.mcp.validator import MCPValidator
+        validator = MCPValidator(security_level="strict")
+        report = ValidationReport(server_url="http://test")
+        report.add(CheckResult("low_issue", False, "low", Severity.LOW, "security"))
+        validator._apply_security_level(report)
+        assert report.results[0].passed is False
+
+    def test_permissive_downgrades_medium(self):
+        from agent_lint.protocols.mcp.validator import MCPValidator
+        validator = MCPValidator(security_level="permissive")
+        report = ValidationReport(server_url="http://test")
+        report.add(CheckResult("med_issue", False, "med", Severity.MEDIUM, "security"))
+        report.add(CheckResult("high_issue", False, "high", Severity.HIGH, "security"))
+        validator._apply_security_level(report)
+        # MEDIUM downgraded, HIGH stays
+        assert report.results[0].passed is True
+        assert report.results[1].passed is False
+
+    def test_does_not_affect_non_security(self):
+        from agent_lint.protocols.mcp.validator import MCPValidator
+        validator = MCPValidator(security_level="permissive")
+        report = ValidationReport(server_url="http://test")
+        report.add(CheckResult("quality", False, "bad", Severity.LOW, "quality"))
+        validator._apply_security_level(report)
+        # Quality results should not be touched
+        assert report.results[0].passed is False
+
+    def test_none_downgrades_everything(self):
+        from agent_lint.protocols.mcp.validator import MCPValidator
+        validator = MCPValidator(security_level="none")
+        report = ValidationReport(server_url="http://test")
+        report.add(CheckResult("crit", False, "crit", Severity.CRITICAL, "security"))
+        report.add(CheckResult("high", False, "high", Severity.HIGH, "security"))
+        report.add(CheckResult("quality", False, "bad", Severity.LOW, "quality"))
+        validator._apply_security_level(report)
+        # All security findings downgraded, quality untouched
+        assert report.results[0].passed is True
+        assert report.results[1].passed is True
+        assert report.results[2].passed is False

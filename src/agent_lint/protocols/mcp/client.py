@@ -20,6 +20,7 @@ class MCPResponse:
     error: dict | None = None
     elapsed_ms: float = 0
     response_size: int = 0
+    headers: dict[str, str] = field(default_factory=dict)
 
 
 class MCPClient:
@@ -73,6 +74,7 @@ class MCPClient:
             error=data.get("error"),
             elapsed_ms=elapsed_ms,
             response_size=response_size,
+            headers=dict(response.headers),
         )
 
     async def initialize(self) -> MCPResponse:
