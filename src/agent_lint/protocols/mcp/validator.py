@@ -1,0 +1,86 @@
+"""MCP validation orchestrator."""
+
+from __future__ import annotations
+
+import json
+
+from agent_lint.core.checks import ValidationReport
+from agent_lint.protocols.mcp.checks.performance import check_payload_size, check_response_time
+from agent_lint.protocols.mcp.checks.quality import check_quality
+from agent_lint.protocols.mcp.checks.schema import check_schema
+from agent_lint.protocols.mcp.checks.security.patterns import check_dangerous_patterns
+from agent_lint.protocols.mcp.checks.security.permissions import check_permissions
+from agent_lint.protocols.mcp.checks.security.secrets import check_secrets
+from agent_lint.protocols.mcp.checks.security.validation import check_input_validation
+from agent_lint.protocols.mcp.client import MCPClient, MCPClientError
+
+
+class MCPValidator:
+    """Orchestrates all MCP validation checks against a server."""
+
+    def __init__(self, security_level: str = "standard") -> None:
+        self.security_level = security_level
+
+    async def validate(self, url: str) -> ValidationReport:
+        """Run all validation checks against an MCP server."""
+        report = ValidationReport(server_url=url)
+
+        async with MCPClient(url) as client:
+            # Schema checks (also establishes connection)
+            schema_results = await check_schema(client)
+            report.add_all(schema_results)
+
+            # If we can't even connect, stop here
+            if any(
+                not r.passed and r.name == "jsonrpc_initialize"
+                for r in schema_results
+            ):
+                return report
+
+            # Get tools for remaining checks
+            tools, raw_responses = await self._get_tools(client)
+
+            # Performance checks (from the tools/list call)
+            try:
+                tools_resp = await client.list_tools()
+                report.add(check_response_time(tools_resp.elapsed_ms))
+                report.add(check_payload_size(tools_resp.response_size))
+            except MCPClientError:
+                pass  # Already reported in schema checks
+
+            # Quality checks
+            quality_results = await check_quality(tools)
+            report.add_all(quality_results)
+
+            # Security checks
+            pattern_results = await check_dangerous_patterns(tools)
+            report.add_all(pattern_results)
+
+            validation_results = await check_input_validation(tools)
+            report.add_all(validation_results)
+
+            permission_results = await check_permissions(tools)
+            report.add_all(permission_results)
+
+            secret_results = await check_secrets(tools, raw_responses)
+            report.add_all(secret_results)
+
+        return report
+
+    async def _get_tools(self, client: MCPClient) -> tuple[list[dict], list[str]]:
+        """Extract tools and raw response text from the server."""
+        tools: list[dict] = []
+        raw_responses: list[str] = []
+
+        try:
+            resp = await client.list_tools()
+            raw_responses.append(json.dumps(resp.result) if resp.result else "")
+
+            if isinstance(resp.result, dict):
+                tools = resp.result.get("tools", [])
+            elif isinstance(resp.result, list):
+                tools = resp.result
+        except MCPClientError:
+            pass
+
+        return tools, raw_responses

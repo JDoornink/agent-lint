@@ -1,0 +1,14 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "agent-lint validate",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "agent_lint.cli",
+            "args": ["validate", "http://localhost:8080"],
+            "console": "integratedTerminal",
+            "justMyCode": true
+        }
+    ]
+}
