@@ -39,7 +39,7 @@ def cli() -> None:
 )
 @click.option(
     "--security-level",
-    type=click.Choice(["strict", "standard", "permissive"]),
+    type=click.Choice(["strict", "standard", "permissive", "none"]),
     default="standard",
     help="Security check strictness level",
 )
