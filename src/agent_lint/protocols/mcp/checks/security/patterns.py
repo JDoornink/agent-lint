@@ -36,6 +36,7 @@ async def check_dangerous_patterns(tools: list[dict]) -> list[CheckResult]:
                     category="security",
                     recommendation="Review tool for command execution risks. "
                                    "Ensure proper input validation and sandboxing.",
+                    tool_name=tool_name,
                 ))
                 break
 
@@ -54,6 +55,7 @@ async def check_dangerous_patterns(tools: list[dict]) -> list[CheckResult]:
                             severity=Severity.MEDIUM,
                             category="security",
                             recommendation="Add JSON schema type validation for this parameter.",
+                            tool_name=tool_name,
                         ))
                     break
 

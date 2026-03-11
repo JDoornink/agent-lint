@@ -34,6 +34,7 @@ async def check_secrets(tools: list[dict], raw_responses: list[str]) -> list[Che
                     category="security",
                     recommendation="Remove credentials from tool definitions. "
                                    "Use environment variables or a secrets manager.",
+                    tool_name=tool.get("name"),
                 ))
                 break
 

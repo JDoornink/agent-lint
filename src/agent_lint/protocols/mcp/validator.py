@@ -13,12 +13,17 @@ from agent_lint.protocols.mcp.checks.security.patterns import check_dangerous_pa
 from agent_lint.protocols.mcp.checks.security.permissions import check_permissions
 from agent_lint.protocols.mcp.checks.security.ratelimit import check_rate_limiting
 from agent_lint.protocols.mcp.checks.security.secrets import check_secrets
+from agent_lint.protocols.mcp.checks.security.dynamic import check_dynamic_security
 from agent_lint.protocols.mcp.checks.security.validation import check_input_validation
 from agent_lint.protocols.mcp.client import MCPClient, MCPClientError
 
 
 class MCPValidator(BaseValidator):
     """Orchestrates all MCP validation checks against a server."""
+
+    def __init__(self, security_level: str = "standard", dynamic: bool = False) -> None:
+        super().__init__(security_level=security_level)
+        self.dynamic = dynamic
 
     async def validate(self, url: str) -> ValidationReport:
         """Run all validation checks against an MCP server."""
@@ -65,6 +70,11 @@ class MCPValidator(BaseValidator):
             report.add_all(secret_results)
 
             report.add(check_rate_limiting(headers))
+
+            # Dynamic security checks (opt-in)
+            if self.dynamic:
+                dynamic_results = await check_dynamic_security(client, tools)
+                report.add_all(dynamic_results)
 
         # Apply security level filtering
         self._apply_security_level(report)

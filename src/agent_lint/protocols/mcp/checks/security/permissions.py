@@ -39,6 +39,7 @@ async def check_permissions(tools: list[dict]) -> list[CheckResult]:
                     category="security",
                     recommendation="Narrow the tool's scope. Specify exactly what "
                                    "files, URLs, or commands are allowed.",
+                    tool_name=name,
                 ))
                 break
 

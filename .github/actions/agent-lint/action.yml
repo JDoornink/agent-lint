@@ -1,0 +1,65 @@
+name: "agent-lint"
+description: "Validate MCP servers for quality and security"
+branding:
+  icon: "shield"
+  color: "blue"
+
+inputs:
+  url:
+    description: "MCP server URL to validate"
+    required: true
+  policy:
+    description: "Path to .agent-lint.yaml policy file"
+    required: false
+  fail-on-security:
+    description: "Fail if security issues found"
+    required: false
+    default: "true"
+  security-level:
+    description: "Security strictness level (strict, standard, permissive, none)"
+    required: false
+    default: "standard"
+  dynamic:
+    description: "Run dynamic security tests"
+    required: false
+    default: "false"
+  fail-under:
+    description: "Fail if score is below this threshold (0-100)"
+    required: false
+    default: "0"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install agent-lint
+      run: pip install agent-lint-cli
+      shell: bash
+
+    - name: Run validation
+      run: |
+        ARGS="agent-lint validate ${{ inputs.url }}"
+        ARGS="$ARGS --format sarif"
+        ARGS="$ARGS --security-level ${{ inputs.security-level }}"
+        ARGS="$ARGS --fail-under ${{ inputs.fail-under }}"
+        ARGS="$ARGS --junit-xml agent-lint-results.xml"
+
+        if [ "${{ inputs.fail-on-security }}" = "true" ]; then
+          ARGS="$ARGS --fail-on-security"
+        fi
+
+        if [ "${{ inputs.dynamic }}" = "true" ]; then
+          ARGS="$ARGS --dynamic"
+        fi
+
+        if [ -n "${{ inputs.policy }}" ]; then
+          ARGS="$ARGS --policy ${{ inputs.policy }}"
+        fi
+
+        $ARGS > agent-lint-results.sarif || true
+      shell: bash
+
+    - name: Upload SARIF results
+      uses: github/codeql-action/upload-sarif@v3
+      if: always()
+      with:
+        sarif_file: agent-lint-results.sarif

@@ -26,6 +26,7 @@ async def check_input_validation(tools: list[dict]) -> list[CheckResult]:
                     severity=Severity.MEDIUM,
                     category="security",
                     recommendation=f"Add a 'type' field to the schema for '{param_name}'.",
+                    tool_name=name,
                 ))
 
             # Check for string params without constraints
@@ -44,6 +45,7 @@ async def check_input_validation(tools: list[dict]) -> list[CheckResult]:
                         category="security",
                         recommendation="Consider adding constraints like enum, pattern, "
                                        "or maxLength to limit input.",
+                        tool_name=name,
                     ))
 
     if not results:

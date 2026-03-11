@@ -9,6 +9,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
 
+from agent_lint import __version__
 from agent_lint.core.checks import CheckResult, Severity, ValidationReport
 
 
@@ -145,8 +146,8 @@ class SarifReporter(Reporter):
                     "tool": {
                         "driver": {
                             "name": "agent-lint",
-                            "version": "0.1.0",
-                            "informationUri": "https://github.com/agent-lint/agent-lint",
+                            "version": __version__,
+                            "informationUri": "https://github.com/JDoornink/agent-lint",
                             "rules": self._build_rules(report),
                         }
                     },

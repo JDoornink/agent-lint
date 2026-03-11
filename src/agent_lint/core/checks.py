@@ -22,6 +22,7 @@ class CheckResult:
     severity: Severity
     category: str  # "security", "quality", "performance", "schema"
     recommendation: str | None = None
+    tool_name: str | None = None
 
 
 @dataclass
